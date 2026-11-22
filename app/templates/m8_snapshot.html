@@ -1,0 +1,80 @@
+{% extends "base.html" %}{% block content %}
+<div class="snapshot-banner {{'locked' if active_snapshot else 'unlocked'}}">
+  {% if active_snapshot %}
+  项目结论 / 批次 / 归档只认活动快照 <b>{{active_snapshot.snapshot_id}}</b>
+  <span>摘要 {{active_snapshot.digest[:16]}}… ｜ 绑定批次 {{active_snapshot.run_id}} ｜ 冻结于 {{active_snapshot.frozen_at[:19]}} UTC</span>
+  {% else %}
+  尚未冻结依据快照：归档出口将拒绝出证。请核对裁决矩阵后封存。
+  {% endif %}
+</div>
+<div class="slips">
+  <section class="panel wide">
+    <header><h2>组合依据裁决矩阵</h2><span>{{data.adjudication.matrix|length}} 项 ｜ 反事实改写 {{data.adjudication.counterfactual_changes}} 项</span></header>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>样本</th><th>批次</th><th>项目</th><th>采纳报告</th><th>替代</th><th>采样日</th><th>报告日</th><th>国家标准（报告正文）</th><th>适用附则</th><th>限量</th><th>冻结结论</th><th>若整体换新</th><th>裁决码</th></tr></thead>
+        <tbody>
+        {% for m in data.adjudication.matrix %}
+        <tr class="{{'shielded' if m.reason=='RETEST_SHIELDED'}}">
+          <td>{{m.sample_id}}</td><td>{{m.batch}}</td><td>{{m.analyte}}</td><td>{{m.report_id}}</td>
+          <td>{{m.replaces or '—'}}</td><td>{{m.sampled}}</td><td>{{m.reported}}</td>
+          <td>{{m.national_standard}}</td><td>{{m.annex_id}}</td>
+          <td class="num">{{m.limit}}</td>
+          <td><span class="verdict {{m.code|lower}}">{{m.code}}</span></td>
+          <td><span class="verdict {{m.counterfactual_code|lower}}">{{m.counterfactual_code}}</span>
+            {% if m.limit_changed %}<small title="出证当日附则限量 {{m.current_limit_today}}">限量已变</small>{% endif %}</td>
+          <td><span class="reject">{{m.reason}}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="signature">
+      <button id="freeze" data-run="{{data.run_id}}">封存为标准快照</button>
+      <button id="freeze-crash" data-run="{{data.run_id}}">中断演练（应回滚）</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>裁决规则</h2></header>
+    <ol class="rule-lines">{% for line in data.adjudication.rule_lines %}<li>{{line}}</li>{% endfor %}</ol>
+    <header><h2>附则留痕</h2></header>
+    <dl>
+      {% for a in data.snapshot_document.annex_registry %}
+      <dt>{{a.annex_id}}<br><small>{{a.title}}</small></dt>
+      <dd>{{a.effective_at}} 生效<br><small>sha256 {{data.snapshot_document.annex_digests[a.annex_id][:12]}}…</small></dd>
+      {% endfor %}
+    </dl>
+    <div class="slip-tail">文档摘要 / {{data.adjudication.document_digest}}</div>
+  </section>
+
+  <section class="panel wide">
+    <header><h2>快照台账（只追加）</h2><span>{{snapshots|length}} 份</span></header>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>快照编号</th><th>绑定批次</th><th>状态</th><th>冻结时间</th><th>被替代时间</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for s in snapshots %}
+        <tr>
+          <td>{{s.snapshot_id}}</td><td>{{s.run_id}}</td>
+          <td><span class="verdict {{'pass' if s.status=='ACTIVE' else 'uncertain'}}">{{s.status}}</span></td>
+          <td>{{s.frozen_at[:19]}}</td><td>{{(s.superseded_at or '')[:19] or '—'}}</td>
+          <td><a href="/snapshots/{{s.snapshot_id}}/print">可复核打印页</a> ｜
+            <a href="/api/snapshots/{{s.snapshot_id}}/export.json">导出JSON证据包</a></td>
+        </tr>
+        {% else %}<tr><td colspan="6">尚无快照</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>审计链</h2><span>{{audit|length}} 条</span></header>
+    <div class="scroll">
+      <table><thead><tr><th>时间</th><th>动作</th><th>快照</th><th>说明</th></tr></thead>
+      <tbody>{% for a in audit %}<tr><td>{{a.at[:19]}}</td><td>{{a.action}}</td><td>{{a.snapshot_id}}</td><td>{{a.detail}}</td></tr>{% else %}<tr><td colspan="4">无审计记录</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -6,7 +6,25 @@ def test_all_module_pages(client):
     for mod,_ in MODULES:assert client.get('/'+mod).status_code==200
 def test_run_and_export(client):
     r=client.post('/api/runs',json={'sample':'dirty.csv'});assert r.status_code==200
-    s=r.get_json();e=client.get('/api/archive/'+s['run_id']+'/export.csv');assert e.status_code==200 and '运行清单' in e.data.decode('utf-8-sig')
+    s=r.get_json()
+    assert client.get('/api/archive/'+s['run_id']+'/export.csv').status_code==409
+    f=client.post('/api/snapshots/freeze',json={'run_id':s['run_id']});assert f.status_code==200,f.data
+    e=client.get('/api/archive/'+s['run_id']+'/export.csv');assert e.status_code==200 and '运行清单' in e.data.decode('utf-8-sig')
+    assert '依据快照' in e.data.decode('utf-8-sig')
+def test_freeze_idempotent_and_exportable(client):
+    s=client.post('/api/runs',json={'sample':'transition.csv'}).get_json()
+    a=client.post('/api/snapshots/freeze',json={'run_id':s['run_id']}).get_json()
+    b=client.post('/api/snapshots/freeze',json={'run_id':s['run_id']}).get_json()
+    assert a['snapshot']['snapshot_id']==b['snapshot']['snapshot_id']
+    assert len(client.get('/api/snapshots').get_json()['snapshots'])==1
+    sid=a['snapshot']['snapshot_id']
+    assert client.get('/api/snapshots/'+sid+'/export.json').status_code==200
+    assert client.get('/snapshots/'+sid+'/print').status_code==200
+def test_interrupt_endpoint_rolls_back(client):
+    s=client.post('/api/runs',json={'sample':'transition.csv'}).get_json()
+    r=client.post('/api/snapshots/freeze',json={'run_id':s['run_id'],'simulate_interrupt':True})
+    assert r.status_code==500
+    assert client.get('/api/snapshots').get_json()['snapshots']==[]
 def test_idempotent_api(client):
     a=client.post('/api/runs',json={}).get_json();b=client.post('/api/runs',json={}).get_json()
     assert a['run_id']==b['run_id'] and len(client.get('/api/runs').get_json())==1

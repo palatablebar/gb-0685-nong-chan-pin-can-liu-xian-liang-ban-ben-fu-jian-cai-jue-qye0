@@ -12,4 +12,4 @@ def choose(row, limits):
     if len(candidates)!=1:raise DomainError('VERSION','采样日期的限量版本缺失或重叠')
     limit=candidates[0]
     if row['method'] not in limit['methods'].split('|'):raise DomainError('METHOD','检测方法不在标准适用范围')
-    return {'standard_id':limit['id'],'limit':str(Decimal(limit['limit_mgkg'])),'methods':limit['methods'],'standard_start':limit['start'],'standard_end':limit['end']}
+    return {'standard_id':limit['id'],'national_standard':limit.get('national_standard','GB 2763-2021'),'limit':str(Decimal(limit['limit_mgkg'])),'methods':limit['methods'],'standard_start':limit['start'],'standard_end':limit['end']}

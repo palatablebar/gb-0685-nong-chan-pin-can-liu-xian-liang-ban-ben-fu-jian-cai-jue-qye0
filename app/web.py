@@ -1,5 +1,5 @@
 import base64
-from flask import request,render_template,jsonify
+from flask import request,render_template,jsonify,g
 from app.errors import DomainError
 from app.config import TITLE,MODULES,SHORT
 from app.workflow import run,load
@@ -16,8 +16,11 @@ def payload():
 def api(stage):
     content,parameters=payload();return jsonify(run(content,parameters,stage))
 
-def page(stage,template):
+def page(stage,template,extra=None):
     latest=store.history();state=store.get(latest[0]['id']) if latest else run(load('dirty.csv'),{})
     source=load(request.args['sample']) if 'sample' in request.args else base64.b64decode(state['source_b64']) if state.get('source_b64') else load('dirty.csv')
     data=run(source,state.get('manifest',{}).get('parameters',{}),stage)
-    return render_template(template,title=TITLE,short=SHORT,modules=MODULES,current=stage,data=data,run=state,history=latest)
+    ctx=dict(title=TITLE,short=SHORT,modules=MODULES,current=stage,data=data,run=state,history=latest,
+        active_snapshot=store.active_snapshot())
+    if extra:ctx.update(extra)
+    return render_template(template,**ctx)

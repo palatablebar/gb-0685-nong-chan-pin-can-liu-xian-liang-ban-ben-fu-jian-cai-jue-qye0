@@ -12,6 +12,8 @@ def create_app():
     for entry in MODULES:app.register_blueprint(importlib.import_module('app.modules.'+entry[0]+'.handler').bp)
     @app.errorhandler(DomainError)
     def domain_error(error):return jsonify(code=error.code,message=error.message),error.status
+    @app.errorhandler(RuntimeError)
+    def runtime_error(error):return jsonify(code='INTERRUPT',message='封存中断，事务已回滚，旧版快照保持有效'),500
     @app.errorhandler(404)
     def missing(error):return jsonify(code='NOT_FOUND',message='入口不存在'),404
     @app.get('/')
@@ -34,6 +36,8 @@ def create_app():
     def download(run_id):
         state=store.get(run_id)
         if not state.get('reconcile',{}).get('balanced'):raise DomainError('UNBALANCED','对账未平')
+        snap=store.verify_binding(run_id)
+        state=dict(state);state['bound_snapshot_id']=snap['snapshot_id'];state['bound_snapshot_digest']=snap['digest']
         return Response(bundle(state),mimetype='text/csv; charset=utf-8',headers={'Content-Disposition':'attachment; filename=evidence.csv'})
     with app.app_context():
         if not store.history():
